@@ -39,6 +39,7 @@ typedef enum : NSUInteger {
 @property (nonatomic, readwrite) ResizePolicy keyboardResizes;
 @property (nonatomic, readwrite) BOOL isWK;
 @property (nonatomic, readwrite) int paddingBottom;
+@property UIView *customToolbarView;
 
 @end
 
@@ -226,8 +227,70 @@ NSTimer *hideTimer;
             break;
     }
     [self resetScrollView];
+
+    // reset accessory view when keyboard show
+    [self resetKeyboardAccrssoryView];
 }
 
+- (void)resetKeyboardAccrssoryView {
+    if (self.customToolbarView == nil) {
+        // find accessory view
+        UIView *accrssoryView = [self findAccessoryBar];
+
+        // add new customize view on accrssory view
+        self.customToolbarView = [[UIView alloc] initWithFrame:accrssoryView.frame];
+        self.customToolbarView.backgroundColor = [UIColor groupTableViewBackgroundColor];
+        [accrssoryView addSubview:self.customToolbarView];
+
+        NSString *doneButtonText = @"Done";
+        NSString *languageID = [[NSLocale preferredLanguages] firstObject];
+        if ([languageID hasPrefix:@"ja"]) {
+            doneButtonText = @"完了";
+        }
+        // add done button for keyboard control
+        UIButton *doneButton = [[UIButton alloc] initWithFrame:CGRectMake(accrssoryView.frame.size.width - 60, 0, 60, accrssoryView.frame.size.height)];
+        [doneButton setTitle:doneButtonText forState:UIControlStateNormal];
+        [doneButton setTitleColor:[UIColor colorWithRed:19/255.0 green:144/255.0 blue:255/255.0 alpha:1.0] forState:UIControlStateNormal];
+        [doneButton addTarget:self action:@selector(buttonDoneAction) forControlEvents:UIControlEventTouchUpInside];
+        [accrssoryView addSubview:doneButton];
+    }
+}
+
+- (void)buttonDoneAction {
+    // hide keyboard
+    [self.webView endEditing:YES];
+
+    // NSString *js = @"elements = document.getElementsByTagName(\"input\"); for (var i = 0; i < elements.length; i++) { if(document.activeElement.id == elements[i].id) { elements[i].blur();break;}}";
+    NSString *js = @"var element = document.querySelector(\"input:focus\"); if (element) { element.blur(); }";
+    [self.commandDelegate evalJs:js];
+}
+
+- (UIView *)findAccessoryBar {
+    UIWindow *keyboardWindow = nil;
+    for (UIWindow *focusWindow in [[UIApplication sharedApplication] windows]) {
+        if (![[focusWindow class] isEqual : [UIWindow class]]) {
+            keyboardWindow = focusWindow;
+            break;
+        }
+    }
+
+    UIView *accessoryView = nil;
+    // Locate UIWebFormView.
+    for (UIView *possibleFormView in [keyboardWindow subviews]) {
+        if ([[possibleFormView description] hasPrefix : @"<UIInputSetContainerView"]) {
+            for (UIView* peripheralView in possibleFormView.subviews) {
+                for (UIView* peripheralSubView in peripheralView.subviews) {
+                    // find accessory bar
+                    if ([[peripheralSubView description] hasPrefix : @"<UIWebFormAccessory"]) {
+                        accessoryView = peripheralSubView;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    return accessoryView;
+}
 
 #pragma mark HideFormAccessoryBar
 
